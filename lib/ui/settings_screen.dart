@@ -65,6 +65,29 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const Divider(),
+          SwitchListTile(
+            title: const Text('Today & tomorrow only'),
+            subtitle: const Text(
+              'Scan markets for the current and next calendar day',
+            ),
+            value: settings.todayTomorrowOnly,
+            onChanged: (value) {
+              ref.read(settingsProvider.notifier).setTodayTomorrowOnly(value);
+              ref.read(scannerProvider.notifier).refresh();
+            },
+          ),
+          SwitchListTile(
+            title: const Text('Hide locked markets'),
+            subtitle: const Text(
+              'Exclude markets where one outcome is ~100% and nothing else is tradeable',
+            ),
+            value: settings.hideLockedAt100,
+            onChanged: (value) {
+              ref.read(settingsProvider.notifier).setHideLockedAt100(value);
+              ref.read(scannerProvider.notifier).refresh();
+            },
+          ),
+          const Divider(),
           ListTile(
             title: const Text('Preferred cities'),
             subtitle: Text(
@@ -133,6 +156,8 @@ class SettingsScreen extends ConsumerWidget {
               await ref.read(settingsProvider.notifier).setMinEdge(defaultMinEdge);
               await ref.read(settingsProvider.notifier).setRefreshMinutes(defaultRefreshMinutes);
               await ref.read(settingsProvider.notifier).setPreferredCities([]);
+              await ref.read(settingsProvider.notifier).setTodayTomorrowOnly(defaultTodayTomorrowOnly);
+              await ref.read(settingsProvider.notifier).setHideLockedAt100(defaultHideLockedAt100);
               ref.read(scannerProvider.notifier).refresh();
             },
           ),

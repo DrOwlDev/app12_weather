@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../models/recommendation.dart';
 import '../providers/app_providers.dart';
+import '../services/market_filters.dart';
 import 'market_detail_screen.dart';
 
 class DashboardScreen extends ConsumerWidget {
@@ -71,6 +72,8 @@ class DashboardScreen extends ConsumerWidget {
                   count: result.recommendations.length,
                   minEdge: settings.minEdge,
                   scannedAt: result.scannedAt,
+                  todayTomorrowOnly: settings.todayTomorrowOnly,
+                  hideLockedAt100: settings.hideLockedAt100,
                 ),
                 const SizedBox(height: 16),
                 if (result.recommendations.isEmpty)
@@ -103,7 +106,7 @@ class DashboardScreen extends ConsumerWidget {
                 ...result.events.take(20).map(
                   (event) => ListTile(
                     title: Text(event.city),
-                    subtitle: Text(DateFormat.yMMMd().format(event.targetDate)),
+                    subtitle: Text(_formatEventDate(event.targetDate)),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () {
                       ref.read(selectedEventProvider.notifier).state = event;
@@ -129,6 +132,12 @@ class DashboardScreen extends ConsumerWidget {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
   }
+}
+
+String _formatEventDate(DateTime date) {
+  final label = dateLabel(date);
+  final formatted = DateFormat.yMMMd().format(date);
+  return label.isEmpty ? formatted : '$formatted ($label)';
 }
 
 class _DisclaimerBanner extends StatelessWidget {
@@ -160,26 +169,47 @@ class _ScanSummary extends StatelessWidget {
     required this.count,
     required this.minEdge,
     required this.scannedAt,
+    required this.todayTomorrowOnly,
+    required this.hideLockedAt100,
   });
 
   final int count;
   final double minEdge;
   final DateTime scannedAt;
+  final bool todayTomorrowOnly;
+  final bool hideLockedAt100;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final filters = <String>[
+      if (todayTomorrowOnly) 'today & tomorrow',
+      if (hideLockedAt100) 'unlocked only',
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Text(
-            '$count opportunities with ≥${(minEdge * 100).toStringAsFixed(0)}% edge',
-            style: Theme.of(context).textTheme.titleMedium,
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                '$count opportunities with ≥${(minEdge * 100).toStringAsFixed(0)}% edge',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            Text(
+              DateFormat.Hm().format(scannedAt),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+        if (filters.isNotEmpty)
+          Text(
+            'Showing: ${filters.join(', ')}',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.outline,
+                ),
           ),
-        ),
-        Text(
-          DateFormat.Hm().format(scannedAt),
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
       ],
     );
   }
@@ -256,7 +286,7 @@ class _RecommendationCard extends StatelessWidget {
                 ],
               ),
               Text(
-                DateFormat.yMMMd().format(event.targetDate),
+                _formatEventDate(event.targetDate),
                 style: theme.textTheme.bodySmall,
               ),
               const SizedBox(height: 12),

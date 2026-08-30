@@ -6,6 +6,7 @@ import '../config/constants.dart';
 import '../models/bucket.dart';
 import '../models/weather_event.dart';
 import '../services/bucket_parser.dart';
+import '../services/market_filters.dart';
 import 'stations.dart';
 
 class PolymarketClient {
@@ -15,11 +16,44 @@ class PolymarketClient {
 
   Future<List<WeatherMarketEvent>> fetchActiveTemperatureEvents({
     int limit = maxEventsPerFetch,
+    String? afterCursor,
   }) async {
     return _fetchEvents(
       closed: false,
       limit: limit,
+      afterCursor: afterCursor,
     );
+  }
+
+  /// Paginates active events until all today/tomorrow markets are collected.
+  Future<List<WeatherMarketEvent>> fetchTodayAndTomorrowEvents() async {
+    final bySlug = <String, WeatherMarketEvent>{};
+    String? cursor;
+
+    for (var page = 0; page < maxEventPages; page++) {
+      final batch = await fetchActiveTemperatureEvents(
+        limit: maxEventsPerFetch,
+        afterCursor: cursor,
+      );
+      if (batch.isEmpty) break;
+
+      for (final event in batch) {
+        if (isTodayOrTomorrow(event.targetDate)) {
+          bySlug[event.slug] = event;
+        }
+      }
+
+      if (batch.length < maxEventsPerFetch) break;
+      cursor = batch.last.id;
+    }
+
+    final results = bySlug.values.toList()
+      ..sort((a, b) {
+        final dateCmp = a.targetDate.compareTo(b.targetDate);
+        if (dateCmp != 0) return dateCmp;
+        return b.volume24hr.compareTo(a.volume24hr);
+      });
+    return results;
   }
 
   Future<List<WeatherMarketEvent>> fetchClosedTemperatureEvents({

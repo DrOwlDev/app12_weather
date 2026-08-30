@@ -230,9 +230,18 @@ DateTime? extractDateFromTitle(String title) {
   final day = int.tryParse(parts[1]);
   if (month == null || day == null) return null;
   var year = now.year;
-  final candidate = DateTime(year, month, day);
-  if (candidate.isBefore(now.subtract(const Duration(days: 180)))) {
-    year += 1;
-  }
-  return DateTime(year, month, day);
+  final thisYear = DateTime(year, month, day);
+  final candidates = [
+    thisYear,
+    DateTime(year - 1, month, day),
+    DateTime(year + 1, month, day),
+  ];
+  candidates.sort((a, b) {
+    final diffA = a.difference(dateOnly(now)).inDays.abs();
+    final diffB = b.difference(dateOnly(now)).inDays.abs();
+    return diffA.compareTo(diffB);
+  });
+  return dateOnly(candidates.first);
 }
+
+DateTime dateOnly(DateTime dt) => DateTime(dt.year, dt.month, dt.day);

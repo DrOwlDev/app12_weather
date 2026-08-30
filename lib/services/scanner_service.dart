@@ -7,6 +7,7 @@ import '../models/weather_event.dart';
 import 'city_ranker.dart';
 import 'edge_calculator.dart';
 import 'history_tracker.dart';
+import 'market_filters.dart';
 import 'probability_engine.dart';
 
 class ScannerService {
@@ -34,13 +35,25 @@ class ScannerService {
   final CityRanker _ranker;
   final HistoryTracker _history;
 
-  Future<ScannerResult> scan({double minEdge = defaultMinEdge}) async {
+  Future<ScannerResult> scan({
+    double minEdge = defaultMinEdge,
+    bool todayTomorrowOnly = defaultTodayTomorrowOnly,
+    bool hideLockedAt100 = defaultHideLockedAt100,
+  }) async {
     final cityWinRates = await _history.getCityWinRates();
-    final rawEvents = await _polymarket.fetchActiveTemperatureEvents();
+    final rawEvents = todayTomorrowOnly
+        ? await _polymarket.fetchTodayAndTomorrowEvents()
+        : await _polymarket.fetchActiveTemperatureEvents();
+
+    final eventsToScan = applyMarketFilters(
+      rawEvents,
+      todayTomorrowOnly: false,
+      hideLockedAt100: hideLockedAt100,
+    );
     final enrichedEvents = <WeatherMarketEvent>[];
     final recommendations = <BetRecommendation>[];
 
-    for (final event in rawEvents) {
+    for (final event in eventsToScan) {
       double? runningMax;
       if (event.isSameDay && event.icaoCode.isNotEmpty) {
         final unit = event.buckets.isNotEmpty

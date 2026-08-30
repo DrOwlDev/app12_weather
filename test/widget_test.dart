@@ -1,8 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:app12_weather/models/bucket.dart';
+import 'package:app12_weather/models/weather_event.dart';
 import 'package:app12_weather/services/bucket_parser.dart';
 import 'package:app12_weather/services/edge_calculator.dart';
-import 'package:app12_weather/models/weather_event.dart';
+import 'package:app12_weather/services/market_filters.dart';
 
 void main() {
   test('parses Fahrenheit range bucket', () {
@@ -97,5 +98,54 @@ void main() {
     expect(rec, isNotNull);
     expect(rec!.targetBucket.id, 'a');
     expect(rec.effectiveEdge, greaterThan(0.07));
+  });
+
+  test('detects market locked at 100%', () {
+    final event = WeatherMarketEvent(
+      id: '1',
+      slug: 'locked',
+      title: 'Test',
+      city: 'Miami',
+      targetDate: DateTime.now(),
+      buckets: [
+        TemperatureBucket(
+          id: 'a',
+          label: '88-89°F',
+          question: 'q',
+          minTemp: 88,
+          maxTemp: 89,
+          unit: TemperatureUnit.fahrenheit,
+          isOrBelow: false,
+          isOrAbove: false,
+          yesPrice: 0.9995,
+          noPrice: 0.0005,
+        ),
+        TemperatureBucket(
+          id: 'b',
+          label: '90-91°F',
+          question: 'q',
+          minTemp: 90,
+          maxTemp: 91,
+          unit: TemperatureUnit.fahrenheit,
+          isOrBelow: false,
+          isOrAbove: false,
+          yesPrice: 0.0005,
+          noPrice: 0.9995,
+        ),
+      ],
+      resolutionSource: 'NOAA',
+      icaoCode: 'KMIA',
+      latitude: 25.79,
+      longitude: -80.29,
+    );
+
+    expect(isLockedAt100(event), isTrue);
+  });
+
+  test('isTodayOrTomorrow matches calendar days', () {
+    final now = DateTime.now();
+    expect(isTodayOrTomorrow(now), isTrue);
+    expect(isTodayOrTomorrow(now.add(const Duration(days: 1))), isTrue);
+    expect(isTodayOrTomorrow(now.add(const Duration(days: 2))), isFalse);
   });
 }

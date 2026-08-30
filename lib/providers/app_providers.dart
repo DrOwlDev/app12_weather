@@ -21,21 +21,29 @@ class AppSettings {
     this.minEdge = defaultMinEdge,
     this.refreshMinutes = defaultRefreshMinutes,
     this.preferredCities = const [],
+    this.todayTomorrowOnly = defaultTodayTomorrowOnly,
+    this.hideLockedAt100 = defaultHideLockedAt100,
   });
 
   final double minEdge;
   final int refreshMinutes;
   final List<String> preferredCities;
+  final bool todayTomorrowOnly;
+  final bool hideLockedAt100;
 
   AppSettings copyWith({
     double? minEdge,
     int? refreshMinutes,
     List<String>? preferredCities,
+    bool? todayTomorrowOnly,
+    bool? hideLockedAt100,
   }) {
     return AppSettings(
       minEdge: minEdge ?? this.minEdge,
       refreshMinutes: refreshMinutes ?? this.refreshMinutes,
       preferredCities: preferredCities ?? this.preferredCities,
+      todayTomorrowOnly: todayTomorrowOnly ?? this.todayTomorrowOnly,
+      hideLockedAt100: hideLockedAt100 ?? this.hideLockedAt100,
     );
   }
 }
@@ -53,6 +61,10 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
       minEdge: prefs.getDouble('min_edge') ?? defaultMinEdge,
       refreshMinutes: prefs.getInt('refresh_minutes') ?? defaultRefreshMinutes,
       preferredCities: prefs.getStringList('preferred_cities') ?? [],
+      todayTomorrowOnly:
+          prefs.getBool('today_tomorrow_only') ?? defaultTodayTomorrowOnly,
+      hideLockedAt100:
+          prefs.getBool('hide_locked_at_100') ?? defaultHideLockedAt100,
     );
   }
 
@@ -72,6 +84,18 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     state = state.copyWith(preferredCities: cities);
     final prefs = await ref.read(sharedPreferencesProvider.future);
     await prefs.setStringList('preferred_cities', cities);
+  }
+
+  Future<void> setTodayTomorrowOnly(bool value) async {
+    state = state.copyWith(todayTomorrowOnly: value);
+    final prefs = await ref.read(sharedPreferencesProvider.future);
+    await prefs.setBool('today_tomorrow_only', value);
+  }
+
+  Future<void> setHideLockedAt100(bool value) async {
+    state = state.copyWith(hideLockedAt100: value);
+    final prefs = await ref.read(sharedPreferencesProvider.future);
+    await prefs.setBool('hide_locked_at_100', value);
   }
 }
 
@@ -98,7 +122,11 @@ class ScannerNotifier extends AsyncNotifier<ScannerResult?> {
   Future<ScannerResult?> _scan() async {
     final settings = ref.read(settingsProvider);
     final service = ref.read(scannerServiceProvider);
-    final result = await service.scan(minEdge: settings.minEdge);
+    final result = await service.scan(
+      minEdge: settings.minEdge,
+      todayTomorrowOnly: settings.todayTomorrowOnly,
+      hideLockedAt100: settings.hideLockedAt100,
+    );
 
     if (settings.preferredCities.isEmpty) return result;
 
