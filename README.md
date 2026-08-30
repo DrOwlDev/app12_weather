@@ -29,6 +29,8 @@ flutter build apk --release
 
 APK output: `build/app/outputs/flutter-apk/app-release.apk`
 
+Download latest APK: https://drowldev.github.io/app12_weather/output.apk
+
 ## Web (local)
 
 ```bash
