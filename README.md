@@ -37,11 +37,17 @@ flutter run -d chrome
 
 ## GitHub Pages
 
-1. Push this repo to GitHub
-2. Enable **GitHub Pages** → source: **GitHub Actions**
-3. Push to `main` — the workflow builds and deploys automatically
+Live site: **https://drowldev.github.io/app12_weather/**
 
-If Polymarket blocks browser CORS on web, use the Windows/Android builds (no CORS) or deploy the optional proxy noted below.
+1. Push this repo to GitHub (`DrOwlDev/app12_weather`)
+2. GitHub Pages is configured for **GitHub Actions** deployment
+3. Every push to `main` runs [`.github/workflows/deploy-web.yml`](.github/workflows/deploy-web.yml) automatically
+
+Manual redeploy:
+
+```bash
+gh workflow run "Deploy Web to GitHub Pages"
+```
 
 ## Settings
 
