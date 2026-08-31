@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/constants.dart';
+import '../data/web_snapshot_loader.dart';
 import '../models/recommendation.dart';
 import '../models/weather_event.dart';
 import '../services/history_tracker.dart';
@@ -105,6 +107,12 @@ final scannerServiceProvider = Provider<ScannerService>((ref) {
   return service;
 });
 
+final webSnapshotLoaderProvider = Provider<WebSnapshotLoader>((ref) {
+  final loader = WebSnapshotLoader();
+  ref.onDispose(loader.dispose);
+  return loader;
+});
+
 final scannerProvider =
     AsyncNotifierProvider<ScannerNotifier, ScannerResult?>(ScannerNotifier.new);
 
@@ -121,17 +129,41 @@ class ScannerNotifier extends AsyncNotifier<ScannerResult?> {
 
   Future<ScannerResult?> _scan() async {
     final settings = ref.read(settingsProvider);
-    final service = ref.read(scannerServiceProvider);
-    final result = await service.scan(
-      minEdge: settings.minEdge,
-      todayTomorrowOnly: settings.todayTomorrowOnly,
-      hideLockedAt100: settings.hideLockedAt100,
-    );
 
-    if (settings.preferredCities.isEmpty) return result;
+    final ScannerResult result;
+    if (kIsWeb) {
+      final loader = ref.read(webSnapshotLoaderProvider);
+      final snapshot = await loader.loadScan();
+      result = snapshot.toScannerResult();
+    } else {
+      result = await ref.read(scannerServiceProvider).scan(
+            minEdge: settings.minEdge,
+            todayTomorrowOnly: settings.todayTomorrowOnly,
+            hideLockedAt100: settings.hideLockedAt100,
+          );
+    }
+
+    return _applyClientFilters(result, settings);
+  }
+
+  ScannerResult _applyClientFilters(ScannerResult result, AppSettings settings) {
+    var recommendations = result.recommendations;
+    if (kIsWeb) {
+      recommendations = recommendations
+          .where((r) => r.effectiveEdge >= settings.minEdge)
+          .toList();
+    }
+
+    if (settings.preferredCities.isEmpty) {
+      return ScannerResult(
+        recommendations: recommendations,
+        events: result.events,
+        scannedAt: result.scannedAt,
+      );
+    }
 
     final preferred = settings.preferredCities.map((c) => c.toLowerCase()).toSet();
-    final filteredRecs = result.recommendations
+    final filteredRecs = recommendations
         .where((r) => preferred.any((p) => r.event.city.toLowerCase().contains(p)))
         .toList();
     final filteredEvents = result.events
@@ -152,6 +184,11 @@ final cityStatsProvider =
 class CityStatsNotifier extends AsyncNotifier<List<CityStats>> {
   @override
   Future<List<CityStats>> build() async {
+    if (kIsWeb) {
+      final loader = ref.read(webSnapshotLoaderProvider);
+      final snapshot = await loader.loadStats();
+      return snapshot.stats;
+    }
     final service = ref.read(scannerServiceProvider);
     return service.fetchCityStats();
   }
@@ -159,6 +196,11 @@ class CityStatsNotifier extends AsyncNotifier<List<CityStats>> {
   Future<void> refresh() async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
+      if (kIsWeb) {
+        final loader = ref.read(webSnapshotLoaderProvider);
+        final snapshot = await loader.loadStats();
+        return snapshot.stats;
+      }
       final service = ref.read(scannerServiceProvider);
       return service.fetchCityStats(refresh: true);
     });

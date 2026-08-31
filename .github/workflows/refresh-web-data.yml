@@ -1,8 +1,9 @@
-name: Deploy Web to GitHub Pages
+name: Refresh Web Data
 
 on:
-  push:
-    branches: [main, master]
+  schedule:
+    # GitHub Actions minimum interval is 5 minutes.
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 permissions:
@@ -15,7 +16,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  refresh:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -37,14 +38,9 @@ jobs:
       - name: Copy web data into site
         run: mkdir -p build/web/data && cp web_data/*.json build/web/data/
 
-      - name: Accept Android licenses
-        run: yes | flutter doctor --android-licenses
-
-      - name: Build APK
-        run: flutter build apk --release
-
-      - name: Copy APK to web output
-        run: cp build/app/outputs/flutter-apk/app-release.apk build/web/output.apk
+      - name: Preserve existing APK on site
+        run: curl -fL -o build/web/output.apk https://drowldev.github.io/app12_weather/output.apk
+        continue-on-error: true
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
@@ -52,7 +48,7 @@ jobs:
           path: build/web
 
   deploy:
-    needs: build
+    needs: refresh
     runs-on: ubuntu-latest
     environment:
       name: github-pages
