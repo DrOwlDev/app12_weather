@@ -45,5 +45,5 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Widget Preview related
+/web_data/
 .widget_preview/

@@ -41,14 +41,23 @@ flutter run -d chrome
 
 Live site: **https://drowldev.github.io/app12_weather/**
 
+The web app uses pre-fetched scan data (refreshed every **5 minutes** via GitHub Actions — the maximum allowed schedule interval) because browsers cannot call Polymarket/METAR APIs directly from static hosting. Use the Android APK for live scanning.
+
 1. Push this repo to GitHub (`DrOwlDev/app12_weather`)
 2. GitHub Pages is configured for **GitHub Actions** deployment
 3. Every push to `main` runs [`.github/workflows/deploy-web.yml`](.github/workflows/deploy-web.yml) automatically
+4. [`.github/workflows/refresh-web-data.yml`](.github/workflows/refresh-web-data.yml) refreshes web data every 5 minutes
 
 Manual redeploy:
 
 ```bash
 gh workflow run "Deploy Web to GitHub Pages"
+```
+
+Manual data refresh:
+
+```bash
+gh workflow run "Refresh Web Data"
 ```
 
 ## Settings

@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../config/constants.dart';
 import '../models/recommendation.dart';
 import '../providers/app_providers.dart';
 import '../services/market_filters.dart';
@@ -66,6 +68,8 @@ class DashboardScreen extends ConsumerWidget {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
+                if (kIsWeb) const _WebDataBanner(),
+                if (kIsWeb) const SizedBox(height: 12),
                 _DisclaimerBanner(),
                 const SizedBox(height: 12),
                 _ScanSummary(
@@ -138,6 +142,42 @@ String _formatEventDate(DateTime date) {
   final label = dateLabel(date);
   final formatted = DateFormat.yMMMd().format(date);
   return label.isEmpty ? formatted : '$formatted ($label)';
+}
+
+class _WebDataBanner extends StatelessWidget {
+  const _WebDataBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.35),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            const Icon(Icons.cloud_download_outlined, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Web data refreshes every $webSnapshotRefreshMinutes minutes. '
+                'Install the Android APK for live scanning.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                launchUrl(
+                  Uri.base.resolve('output.apk'),
+                  mode: LaunchMode.externalApplication,
+                );
+              },
+              child: const Text('Get APK'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _DisclaimerBanner extends StatelessWidget {

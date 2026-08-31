@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../config/constants.dart';
 import '../providers/app_providers.dart';
 
 class StatsScreen extends ConsumerWidget {
@@ -36,6 +38,14 @@ class StatsScreen extends ConsumerWidget {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
+                if (kIsWeb)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Text(
+                      'Historical stats refresh every $webSnapshotRefreshMinutes minutes on web.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
                 Text(
                   'Per-city accuracy from recently resolved Polymarket temperature markets. '
                   'Higher accuracy cities are more predictable for betting.',
