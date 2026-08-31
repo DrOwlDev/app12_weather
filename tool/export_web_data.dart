@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/widgets.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:app12_weather/config/constants.dart';
 import 'package:app12_weather/models/web_snapshot.dart';
@@ -9,14 +10,15 @@ import 'package:app12_weather/services/scanner_service.dart';
 
 /// CI entry point: writes pre-fetched scan data for GitHub Pages web builds.
 ///
-/// Run with: flutter test test/export_web_data_test.dart
-void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
+/// Run with:
+///   flutter build linux -t tool/export_web_data.dart --release
+///   ./build/linux/x64/release/bundle/app12_weather
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  SharedPreferences.setMockInitialValues({});
 
-  test('export web snapshots for GitHub Pages', () async {
-    final service = ScannerService();
-    addTearDown(service.dispose);
-
+  final service = ScannerService();
+  try {
     final result = await service.scan(
       minEdge: 0,
       todayTomorrowOnly: defaultTodayTomorrowOnly,
@@ -47,7 +49,13 @@ void main() {
       const JsonEncoder.withIndent('  ').convert(statsSnapshot.toJson()),
     );
 
-    expect(File('web_data/scan.json').existsSync(), isTrue);
-    expect(File('web_data/stats.json').existsSync(), isTrue);
-  }, timeout: const Timeout(Duration(minutes: 10)));
+    stdout.writeln(
+      'Exported ${result.recommendations.length} recommendations '
+      'and ${stats.length} city stats.',
+    );
+  } finally {
+    service.dispose();
+  }
+
+  exit(0);
 }

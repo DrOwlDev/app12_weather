@@ -30,7 +30,12 @@ jobs:
         run: flutter pub get
 
       - name: Export web scan data
-        run: flutter test test/export_web_data_test.dart
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+          flutter config --enable-linux-desktop
+          flutter build linux -t tool/export_web_data.dart --release
+          ./build/linux/x64/release/bundle/app12_weather
 
       - name: Build web
         run: flutter build web --release --base-href "/app12_weather/"
