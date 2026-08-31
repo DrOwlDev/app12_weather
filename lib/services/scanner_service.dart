@@ -1,4 +1,5 @@
 import '../config/constants.dart';
+import '../data/coordinate_resolver.dart';
 import '../data/metar_client.dart';
 import '../data/open_meteo_client.dart';
 import '../data/polymarket_client.dart';
@@ -19,13 +20,15 @@ class ScannerService {
     EdgeCalculator? edgeCalculator,
     CityRanker? cityRanker,
     HistoryTracker? historyTracker,
+    CoordinateResolver? coordinateResolver,
   })  : _polymarket = polymarketClient ?? PolymarketClient(),
         _meteo = meteoClient ?? OpenMeteoClient(),
         _metar = metarClient ?? MetarClient(),
         _probability = probabilityEngine ?? ProbabilityEngine(),
         _edge = edgeCalculator ?? EdgeCalculator(),
         _ranker = cityRanker ?? CityRanker(),
-        _history = historyTracker ?? HistoryTracker();
+        _history = historyTracker ?? HistoryTracker(),
+        _coordinates = coordinateResolver ?? CoordinateResolver();
 
   final PolymarketClient _polymarket;
   final OpenMeteoClient _meteo;
@@ -34,26 +37,44 @@ class ScannerService {
   final EdgeCalculator _edge;
   final CityRanker _ranker;
   final HistoryTracker _history;
+  final CoordinateResolver _coordinates;
 
   Future<ScannerResult> scan({
     double minEdge = defaultMinEdge,
-    bool todayTomorrowOnly = defaultTodayTomorrowOnly,
+    DateWindowFilter dateFilter = const DateWindowFilter(),
     bool hideLockedAt100 = defaultHideLockedAt100,
+    bool hideZeroPriceBuckets = defaultHideZeroPriceBuckets,
   }) async {
     final cityWinRates = await _history.getCityWinRates();
-    final rawEvents = todayTomorrowOnly
-        ? await _polymarket.fetchTodayAndTomorrowEvents()
-        : await _polymarket.fetchActiveTemperatureEvents();
+    final rawEvents = dateFilter.hasAnySelected
+        ? await _polymarket.fetchActiveTemperatureEventsInWindow(dateFilter)
+        : <WeatherMarketEvent>[];
 
     final eventsToScan = applyMarketFilters(
       rawEvents,
-      todayTomorrowOnly: false,
+      dateFilter: dateFilter,
       hideLockedAt100: hideLockedAt100,
+      hideZeroPriceBuckets: hideZeroPriceBuckets,
     );
     final enrichedEvents = <WeatherMarketEvent>[];
     final recommendations = <BetRecommendation>[];
 
-    for (final event in eventsToScan) {
+    for (var event in eventsToScan) {
+      if (event.latitude == 0 && event.longitude == 0) {
+        final resolved = await _coordinates.resolve(
+          city: event.city,
+          icaoCode: event.icaoCode,
+        );
+        if (!resolved.isValid) continue;
+        event = event.copyWith(
+          latitude: resolved.latitude,
+          longitude: resolved.longitude,
+          icaoCode: resolved.icaoCode.isNotEmpty
+              ? resolved.icaoCode
+              : event.icaoCode,
+        );
+      }
+
       double? runningMax;
       if (event.isSameDay && event.icaoCode.isNotEmpty) {
         final unit = event.buckets.isNotEmpty
@@ -73,10 +94,6 @@ class ScannerService {
         meteoClient: _meteo,
         metRunningMax: runningMax,
       );
-
-      if (enriched.latitude == 0 || enriched.longitude == 0) {
-        continue;
-      }
 
       enrichedEvents.add(enriched);
 
@@ -120,6 +137,7 @@ class ScannerService {
     _polymarket.dispose();
     _meteo.dispose();
     _metar.dispose();
+    _coordinates.dispose();
   }
 }
 

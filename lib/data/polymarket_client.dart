@@ -25,8 +25,10 @@ class PolymarketClient {
     );
   }
 
-  /// Paginates active events until all today/tomorrow markets are collected.
-  Future<List<WeatherMarketEvent>> fetchTodayAndTomorrowEvents() async {
+  /// Paginates active events and keeps those in the selected date window.
+  Future<List<WeatherMarketEvent>> fetchActiveTemperatureEventsInWindow(
+    DateWindowFilter filter,
+  ) async {
     final bySlug = <String, WeatherMarketEvent>{};
     String? cursor;
 
@@ -38,7 +40,7 @@ class PolymarketClient {
       if (batch.isEmpty) break;
 
       for (final event in batch) {
-        if (isTodayOrTomorrow(event.targetDate)) {
+        if (filter.matches(event.targetDate)) {
           bySlug[event.slug] = event;
         }
       }
@@ -143,7 +145,7 @@ class PolymarketClient {
       latitude: lat,
       longitude: lon,
       volume24hr: volume,
-      isSameDay: _isSameDay(targetDate),
+      isSameDay: isToday(targetDate),
     );
   }
 
@@ -154,13 +156,6 @@ class PolymarketClient {
       total += _toDouble(map['volume24hr']);
     }
     return total;
-  }
-
-  bool _isSameDay(DateTime target) {
-    final now = DateTime.now();
-    return target.year == now.year &&
-        target.month == now.month &&
-        target.day == now.day;
   }
 
   double _toDouble(dynamic value) {

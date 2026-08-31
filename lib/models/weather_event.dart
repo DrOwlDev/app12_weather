@@ -47,6 +47,9 @@ class WeatherMarketEvent {
     double? ensembleSpread,
     double? metRunningMax,
     bool? isSameDay,
+    String? icaoCode,
+    double? latitude,
+    double? longitude,
   }) {
     return WeatherMarketEvent(
       id: id,
@@ -56,9 +59,9 @@ class WeatherMarketEvent {
       targetDate: targetDate,
       buckets: buckets ?? this.buckets,
       resolutionSource: resolutionSource,
-      icaoCode: icaoCode,
-      latitude: latitude,
-      longitude: longitude,
+      icaoCode: icaoCode ?? this.icaoCode,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
       volume24hr: volume24hr,
       ensembleSpread: ensembleSpread ?? this.ensembleSpread,
       metRunningMax: metRunningMax ?? this.metRunningMax,

@@ -7,6 +7,7 @@ import '../data/web_snapshot_loader.dart';
 import '../models/recommendation.dart';
 import '../models/weather_event.dart';
 import '../services/history_tracker.dart';
+import '../services/market_filters.dart';
 import '../services/scanner_service.dart';
 
 final sharedPreferencesProvider = FutureProvider<SharedPreferences>((ref) async {
@@ -23,29 +24,47 @@ class AppSettings {
     this.minEdge = defaultMinEdge,
     this.refreshMinutes = defaultRefreshMinutes,
     this.preferredCities = const [],
-    this.todayTomorrowOnly = defaultTodayTomorrowOnly,
+    this.showYesterday = defaultShowYesterday,
+    this.showToday = defaultShowToday,
+    this.showTomorrow = defaultShowTomorrow,
     this.hideLockedAt100 = defaultHideLockedAt100,
+    this.hideZeroPriceBuckets = defaultHideZeroPriceBuckets,
   });
 
   final double minEdge;
   final int refreshMinutes;
   final List<String> preferredCities;
-  final bool todayTomorrowOnly;
+  final bool showYesterday;
+  final bool showToday;
+  final bool showTomorrow;
   final bool hideLockedAt100;
+  final bool hideZeroPriceBuckets;
+
+  DateWindowFilter get dateFilter => DateWindowFilter(
+        showYesterday: showYesterday,
+        showToday: showToday,
+        showTomorrow: showTomorrow,
+      );
 
   AppSettings copyWith({
     double? minEdge,
     int? refreshMinutes,
     List<String>? preferredCities,
-    bool? todayTomorrowOnly,
+    bool? showYesterday,
+    bool? showToday,
+    bool? showTomorrow,
     bool? hideLockedAt100,
+    bool? hideZeroPriceBuckets,
   }) {
     return AppSettings(
       minEdge: minEdge ?? this.minEdge,
       refreshMinutes: refreshMinutes ?? this.refreshMinutes,
       preferredCities: preferredCities ?? this.preferredCities,
-      todayTomorrowOnly: todayTomorrowOnly ?? this.todayTomorrowOnly,
+      showYesterday: showYesterday ?? this.showYesterday,
+      showToday: showToday ?? this.showToday,
+      showTomorrow: showTomorrow ?? this.showTomorrow,
       hideLockedAt100: hideLockedAt100 ?? this.hideLockedAt100,
+      hideZeroPriceBuckets: hideZeroPriceBuckets ?? this.hideZeroPriceBuckets,
     );
   }
 }
@@ -63,10 +82,13 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
       minEdge: prefs.getDouble('min_edge') ?? defaultMinEdge,
       refreshMinutes: prefs.getInt('refresh_minutes') ?? defaultRefreshMinutes,
       preferredCities: prefs.getStringList('preferred_cities') ?? [],
-      todayTomorrowOnly:
-          prefs.getBool('today_tomorrow_only') ?? defaultTodayTomorrowOnly,
+      showYesterday: prefs.getBool('show_yesterday') ?? defaultShowYesterday,
+      showToday: prefs.getBool('show_today') ?? defaultShowToday,
+      showTomorrow: prefs.getBool('show_tomorrow') ?? defaultShowTomorrow,
       hideLockedAt100:
           prefs.getBool('hide_locked_at_100') ?? defaultHideLockedAt100,
+      hideZeroPriceBuckets: prefs.getBool('hide_zero_price_buckets') ??
+          defaultHideZeroPriceBuckets,
     );
   }
 
@@ -88,16 +110,47 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     await prefs.setStringList('preferred_cities', cities);
   }
 
-  Future<void> setTodayTomorrowOnly(bool value) async {
-    state = state.copyWith(todayTomorrowOnly: value);
+  Future<void> setShowYesterday(bool value) async {
+    state = state.copyWith(showYesterday: value);
     final prefs = await ref.read(sharedPreferencesProvider.future);
-    await prefs.setBool('today_tomorrow_only', value);
+    await prefs.setBool('show_yesterday', value);
+  }
+
+  Future<void> setShowToday(bool value) async {
+    state = state.copyWith(showToday: value);
+    final prefs = await ref.read(sharedPreferencesProvider.future);
+    await prefs.setBool('show_today', value);
+  }
+
+  Future<void> setShowTomorrow(bool value) async {
+    state = state.copyWith(showTomorrow: value);
+    final prefs = await ref.read(sharedPreferencesProvider.future);
+    await prefs.setBool('show_tomorrow', value);
   }
 
   Future<void> setHideLockedAt100(bool value) async {
     state = state.copyWith(hideLockedAt100: value);
     final prefs = await ref.read(sharedPreferencesProvider.future);
     await prefs.setBool('hide_locked_at_100', value);
+  }
+
+  Future<void> setHideZeroPriceBuckets(bool value) async {
+    state = state.copyWith(hideZeroPriceBuckets: value);
+    final prefs = await ref.read(sharedPreferencesProvider.future);
+    await prefs.setBool('hide_zero_price_buckets', value);
+  }
+
+  Future<void> resetToDefaults() async {
+    final prefs = await ref.read(sharedPreferencesProvider.future);
+    state = const AppSettings();
+    await prefs.setDouble('min_edge', defaultMinEdge);
+    await prefs.setInt('refresh_minutes', defaultRefreshMinutes);
+    await prefs.setStringList('preferred_cities', []);
+    await prefs.setBool('show_yesterday', defaultShowYesterday);
+    await prefs.setBool('show_today', defaultShowToday);
+    await prefs.setBool('show_tomorrow', defaultShowTomorrow);
+    await prefs.setBool('hide_locked_at_100', defaultHideLockedAt100);
+    await prefs.setBool('hide_zero_price_buckets', defaultHideZeroPriceBuckets);
   }
 }
 
@@ -138,8 +191,9 @@ class ScannerNotifier extends AsyncNotifier<ScannerResult?> {
     } else {
       result = await ref.read(scannerServiceProvider).scan(
             minEdge: settings.minEdge,
-            todayTomorrowOnly: settings.todayTomorrowOnly,
+            dateFilter: settings.dateFilter,
             hideLockedAt100: settings.hideLockedAt100,
+            hideZeroPriceBuckets: settings.hideZeroPriceBuckets,
           );
     }
 
@@ -147,17 +201,39 @@ class ScannerNotifier extends AsyncNotifier<ScannerResult?> {
   }
 
   ScannerResult _applyClientFilters(ScannerResult result, AppSettings settings) {
+    var events = result.events;
     var recommendations = result.recommendations;
+
     if (kIsWeb) {
+      events = applyMarketFilters(
+        events,
+        dateFilter: settings.dateFilter,
+        hideLockedAt100: settings.hideLockedAt100,
+        hideZeroPriceBuckets: settings.hideZeroPriceBuckets,
+      );
       recommendations = recommendations
           .where((r) => r.effectiveEdge >= settings.minEdge)
+          .where((r) => settings.dateFilter.matches(r.event.targetDate))
+          .where((r) {
+            if (settings.hideLockedAt100 && isLockedAt100(r.event)) {
+              return false;
+            }
+            return true;
+          })
+          .where((r) {
+            if (settings.hideZeroPriceBuckets &&
+                isZeroPriceBucket(r.targetBucket)) {
+              return false;
+            }
+            return true;
+          })
           .toList();
     }
 
     if (settings.preferredCities.isEmpty) {
       return ScannerResult(
         recommendations: recommendations,
-        events: result.events,
+        events: events,
         scannedAt: result.scannedAt,
       );
     }
@@ -166,7 +242,7 @@ class ScannerNotifier extends AsyncNotifier<ScannerResult?> {
     final filteredRecs = recommendations
         .where((r) => preferred.any((p) => r.event.city.toLowerCase().contains(p)))
         .toList();
-    final filteredEvents = result.events
+    final filteredEvents = events
         .where((e) => preferred.any((p) => e.city.toLowerCase().contains(p)))
         .toList();
 
