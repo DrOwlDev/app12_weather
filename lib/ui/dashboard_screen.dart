@@ -72,12 +72,13 @@ class DashboardScreen extends ConsumerWidget {
                 if (kIsWeb) const SizedBox(height: 12),
                 _DisclaimerBanner(),
                 const SizedBox(height: 12),
+                const _DashboardFilterBar(),
+                const SizedBox(height: 12),
                 _ScanSummary(
                   count: result.recommendations.length,
                   minEdge: settings.minEdge,
                   scannedAt: result.scannedAt,
-                  todayTomorrowOnly: settings.todayTomorrowOnly,
-                  hideLockedAt100: settings.hideLockedAt100,
+                  settings: settings,
                 ),
                 const SizedBox(height: 16),
                 if (result.recommendations.isEmpty)
@@ -204,26 +205,116 @@ class _DisclaimerBanner extends StatelessWidget {
   }
 }
 
+class _DashboardFilterBar extends ConsumerWidget {
+  const _DashboardFilterBar();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(settingsProvider);
+    final theme = Theme.of(context);
+
+    void refreshScan() => ref.read(scannerProvider.notifier).refresh();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Filters', style: theme.textTheme.titleSmall),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 4,
+              runSpacing: 0,
+              children: [
+                FilterChip(
+                  label: const Text('Yesterday'),
+                  selected: settings.showYesterday,
+                  onSelected: (value) async {
+                    await ref
+                        .read(settingsProvider.notifier)
+                        .setShowYesterday(value);
+                    refreshScan();
+                  },
+                ),
+                FilterChip(
+                  label: const Text('Today'),
+                  selected: settings.showToday,
+                  onSelected: (value) async {
+                    await ref.read(settingsProvider.notifier).setShowToday(value);
+                    refreshScan();
+                  },
+                ),
+                FilterChip(
+                  label: const Text('Tomorrow'),
+                  selected: settings.showTomorrow,
+                  onSelected: (value) async {
+                    await ref
+                        .read(settingsProvider.notifier)
+                        .setShowTomorrow(value);
+                    refreshScan();
+                  },
+                ),
+              ],
+            ),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              title: const Text('Hide locked markets'),
+              subtitle: const Text(
+                'Exclude markets where one outcome is ~100% and nothing else trades',
+              ),
+              value: settings.hideLockedAt100,
+              onChanged: (value) async {
+                if (value == null) return;
+                await ref
+                    .read(settingsProvider.notifier)
+                    .setHideLockedAt100(value);
+                refreshScan();
+              },
+            ),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              title: const Text('Hide 0 YES / 0 NO buckets'),
+              subtitle: const Text(
+                'Exclude temperature buckets with no tradeable YES or NO price',
+              ),
+              value: settings.hideZeroPriceBuckets,
+              onChanged: (value) async {
+                if (value == null) return;
+                await ref
+                    .read(settingsProvider.notifier)
+                    .setHideZeroPriceBuckets(value);
+                refreshScan();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ScanSummary extends StatelessWidget {
   const _ScanSummary({
     required this.count,
     required this.minEdge,
     required this.scannedAt,
-    required this.todayTomorrowOnly,
-    required this.hideLockedAt100,
+    required this.settings,
   });
 
   final int count;
   final double minEdge;
   final DateTime scannedAt;
-  final bool todayTomorrowOnly;
-  final bool hideLockedAt100;
+  final AppSettings settings;
 
   @override
   Widget build(BuildContext context) {
     final filters = <String>[
-      if (todayTomorrowOnly) 'today & tomorrow',
-      if (hideLockedAt100) 'unlocked only',
+      ...settings.dateFilter.activeLabels(),
+      if (settings.hideLockedAt100) 'unlocked only',
+      if (settings.hideZeroPriceBuckets) 'no zero-price buckets',
     ];
 
     return Column(
@@ -233,7 +324,9 @@ class _ScanSummary extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                '$count opportunities with ≥${(minEdge * 100).toStringAsFixed(0)}% edge',
+                settings.dateFilter.hasAnySelected
+                    ? '$count opportunities with ≥${(minEdge * 100).toStringAsFixed(0)}% edge'
+                    : 'Select at least one day to scan',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
             ),

@@ -1,23 +1,31 @@
 import 'recommendation.dart';
 import 'bucket.dart';
 import 'weather_event.dart';
+import '../config/constants.dart';
 import '../services/history_tracker.dart';
+import '../services/market_filters.dart';
 import '../services/scanner_service.dart';
 
 class WebScanSnapshot {
   const WebScanSnapshot({
     required this.generatedAt,
     required this.minEdge,
-    required this.todayTomorrowOnly,
+    required this.showYesterday,
+    required this.showToday,
+    required this.showTomorrow,
     required this.hideLockedAt100,
+    required this.hideZeroPriceBuckets,
     required this.recommendations,
     required this.events,
   });
 
   final DateTime generatedAt;
   final double minEdge;
-  final bool todayTomorrowOnly;
+  final bool showYesterday;
+  final bool showToday;
+  final bool showTomorrow;
   final bool hideLockedAt100;
+  final bool hideZeroPriceBuckets;
   final List<BetRecommendation> recommendations;
   final List<WeatherMarketEvent> events;
 
@@ -32,18 +40,32 @@ class WebScanSnapshot {
   Map<String, dynamic> toJson() => {
         'generatedAt': generatedAt.toUtc().toIso8601String(),
         'minEdge': minEdge,
-        'todayTomorrowOnly': todayTomorrowOnly,
+        'showYesterday': showYesterday,
+        'showToday': showToday,
+        'showTomorrow': showTomorrow,
         'hideLockedAt100': hideLockedAt100,
+        'hideZeroPriceBuckets': hideZeroPriceBuckets,
         'recommendations': recommendations.map(_recommendationToJson).toList(),
         'events': events.map(_eventToJson).toList(),
       };
 
   factory WebScanSnapshot.fromJson(Map<String, dynamic> json) {
+    final legacyTodayTomorrow = json['todayTomorrowOnly'] as bool?;
     return WebScanSnapshot(
       generatedAt: DateTime.parse(json['generatedAt'] as String),
       minEdge: (json['minEdge'] as num).toDouble(),
-      todayTomorrowOnly: json['todayTomorrowOnly'] as bool,
-      hideLockedAt100: json['hideLockedAt100'] as bool,
+      showYesterday: json['showYesterday'] as bool? ??
+          legacyTodayTomorrow ??
+          defaultShowYesterday,
+      showToday: json['showToday'] as bool? ??
+          legacyTodayTomorrow ??
+          defaultShowToday,
+      showTomorrow: json['showTomorrow'] as bool? ??
+          legacyTodayTomorrow ??
+          defaultShowTomorrow,
+      hideLockedAt100: json['hideLockedAt100'] as bool? ?? defaultHideLockedAt100,
+      hideZeroPriceBuckets: json['hideZeroPriceBuckets'] as bool? ??
+          defaultHideZeroPriceBuckets,
       recommendations: (json['recommendations'] as List<dynamic>)
           .map((e) => _recommendationFromJson(e as Map<String, dynamic>))
           .toList(),
@@ -56,14 +78,18 @@ class WebScanSnapshot {
   factory WebScanSnapshot.fromScannerResult(
     ScannerResult result, {
     required double minEdge,
-    required bool todayTomorrowOnly,
+    required DateWindowFilter dateFilter,
     required bool hideLockedAt100,
+    required bool hideZeroPriceBuckets,
   }) {
     return WebScanSnapshot(
       generatedAt: result.scannedAt,
       minEdge: minEdge,
-      todayTomorrowOnly: todayTomorrowOnly,
+      showYesterday: dateFilter.showYesterday,
+      showToday: dateFilter.showToday,
+      showTomorrow: dateFilter.showTomorrow,
       hideLockedAt100: hideLockedAt100,
+      hideZeroPriceBuckets: hideZeroPriceBuckets,
       recommendations: result.recommendations,
       events: result.events,
     );

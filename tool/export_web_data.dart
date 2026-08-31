@@ -6,31 +6,36 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:app12_weather/config/constants.dart';
 import 'package:app12_weather/models/web_snapshot.dart';
+import 'package:app12_weather/services/market_filters.dart';
 import 'package:app12_weather/services/scanner_service.dart';
 
 /// CI entry point: writes pre-fetched scan data for GitHub Pages web builds.
-///
-/// Run with:
-///   flutter build linux -t tool/export_web_data.dart --release
-///   ./build/linux/x64/release/bundle/app12_weather
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SharedPreferences.setMockInitialValues({});
+
+  const exportDateFilter = DateWindowFilter(
+    showYesterday: true,
+    showToday: true,
+    showTomorrow: true,
+  );
 
   final service = ScannerService();
   try {
     final result = await service.scan(
       minEdge: 0,
-      todayTomorrowOnly: defaultTodayTomorrowOnly,
-      hideLockedAt100: defaultHideLockedAt100,
+      dateFilter: exportDateFilter,
+      hideLockedAt100: false,
+      hideZeroPriceBuckets: false,
     );
     final stats = await service.fetchCityStats(refresh: true);
 
     final scanSnapshot = WebScanSnapshot.fromScannerResult(
       result,
       minEdge: 0,
-      todayTomorrowOnly: defaultTodayTomorrowOnly,
+      dateFilter: exportDateFilter,
       hideLockedAt100: defaultHideLockedAt100,
+      hideZeroPriceBuckets: defaultHideZeroPriceBuckets,
     );
     final statsSnapshot = WebStatsSnapshot(
       generatedAt: DateTime.now(),
@@ -50,8 +55,8 @@ Future<void> main() async {
     );
 
     stdout.writeln(
-      'Exported ${result.recommendations.length} recommendations '
-      'and ${stats.length} city stats.',
+      'Exported ${result.recommendations.length} recommendations, '
+      '${result.events.length} events, and ${stats.length} city stats.',
     );
   } finally {
     service.dispose();

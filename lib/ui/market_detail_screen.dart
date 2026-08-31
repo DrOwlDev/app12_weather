@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../models/bucket.dart';
 import '../models/recommendation.dart';
 import '../models/weather_event.dart';
+import '../providers/app_providers.dart';
+import '../services/market_filters.dart';
 
-class MarketDetailScreen extends StatelessWidget {
+class MarketDetailScreen extends ConsumerWidget {
   const MarketDetailScreen({
     super.key,
     required this.event,
@@ -17,10 +20,16 @@ class MarketDetailScreen extends StatelessWidget {
   final BetRecommendation? highlight;
 
   @override
-  Widget build(BuildContext context) {
-    final favorite = event.favoriteBucket;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(settingsProvider);
+    final displayEvent = filterEventBuckets(
+      event,
+      hideZeroPriceBuckets: settings.hideZeroPriceBuckets,
+    );
+    final favorite = displayEvent.favoriteBucket;
     final unitLabel =
-        event.buckets.isNotEmpty && event.buckets.first.unit == TemperatureUnit.fahrenheit
+        displayEvent.buckets.isNotEmpty &&
+                displayEvent.buckets.first.unit == TemperatureUnit.fahrenheit
             ? '°F'
             : '°C';
 
@@ -73,7 +82,7 @@ class MarketDetailScreen extends StatelessWidget {
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 8),
-          ...event.buckets.map(
+          ...displayEvent.buckets.map(
             (bucket) => _BucketRow(
               bucket: bucket,
               isFavorite: favorite?.id == bucket.id,

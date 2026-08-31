@@ -148,4 +148,33 @@ void main() {
     expect(isTodayOrTomorrow(now.add(const Duration(days: 1))), isTrue);
     expect(isTodayOrTomorrow(now.add(const Duration(days: 2))), isFalse);
   });
+
+  test('DateWindowFilter matches yesterday today and tomorrow', () {
+    final now = DateTime.now();
+    const filter = DateWindowFilter(
+      showYesterday: true,
+      showToday: true,
+      showTomorrow: true,
+    );
+    expect(filter.matches(now.subtract(const Duration(days: 1))), isTrue);
+    expect(filter.matches(now), isTrue);
+    expect(filter.matches(now.add(const Duration(days: 1))), isTrue);
+    expect(filter.matches(now.add(const Duration(days: 2))), isFalse);
+  });
+
+  test('isZeroPriceBucket detects untradeable buckets', () {
+    const bucket = TemperatureBucket(
+      id: 'z',
+      label: '0-1°C',
+      question: 'q',
+      minTemp: 0,
+      maxTemp: 1,
+      unit: TemperatureUnit.celsius,
+      isOrBelow: false,
+      isOrAbove: false,
+      yesPrice: 0,
+      noPrice: 0,
+    );
+    expect(isZeroPriceBucket(bucket), isTrue);
+  });
 }
