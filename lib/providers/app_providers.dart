@@ -78,6 +78,20 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
 
   Future<void> _load() async {
     final prefs = await ref.read(sharedPreferencesProvider.future);
+
+    // Migrate legacy today_tomorrow_only → separate day toggles.
+    final legacyTodayTomorrow = prefs.getBool('today_tomorrow_only');
+    if (legacyTodayTomorrow != null &&
+        !prefs.containsKey('show_yesterday') &&
+        !prefs.containsKey('show_today') &&
+        !prefs.containsKey('show_tomorrow')) {
+      final allDays = legacyTodayTomorrow;
+      await prefs.setBool('show_yesterday', allDays);
+      await prefs.setBool('show_today', allDays);
+      await prefs.setBool('show_tomorrow', allDays);
+      await prefs.remove('today_tomorrow_only');
+    }
+
     state = AppSettings(
       minEdge: prefs.getDouble('min_edge') ?? defaultMinEdge,
       refreshMinutes: prefs.getInt('refresh_minutes') ?? defaultRefreshMinutes,
