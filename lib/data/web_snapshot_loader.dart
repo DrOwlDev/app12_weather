@@ -11,8 +11,15 @@ class WebSnapshotLoader {
 
   static const closingBetsPath = 'data/closing_bets.json';
 
-  Future<ClosingBetsSnapshot> loadClosingBets() async {
-    final uri = Uri.base.resolve(closingBetsPath);
+  Future<ClosingBetsSnapshot> loadClosingBets({bool bustCache = false}) async {
+    var uri = Uri.base.resolve(closingBetsPath);
+    if (bustCache) {
+      uri = uri.replace(
+        queryParameters: {
+          't': DateTime.now().millisecondsSinceEpoch.toString(),
+        },
+      );
+    }
     final response = await _client.get(uri, headers: _headers);
     if (response.statusCode != 200) {
       throw Exception(

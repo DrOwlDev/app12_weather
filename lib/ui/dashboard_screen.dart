@@ -20,10 +20,21 @@ class DashboardScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Closing Weather Bets'),
         actions: [
+          if (kIsWeb)
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: FilledButton.tonalIcon(
+                onPressed: () => _openUrl(refreshWorkflowUrl),
+                icon: const Icon(Icons.play_circle_outline, size: 18),
+                label: const Text('Run data refresh'),
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () => ref.read(closingSoonProvider.notifier).refresh(),
-            tooltip: 'Refresh',
+            tooltip: kIsWeb
+                ? 'Reload data from site'
+                : 'Refresh Polymarket scan',
           ),
         ],
       ),
@@ -89,6 +100,13 @@ class DashboardScreen extends ConsumerWidget {
       ),
     );
   }
+
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
 }
 
 class _WebDataBanner extends StatelessWidget {
@@ -105,23 +123,14 @@ class _WebDataBanner extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            const Icon(Icons.cloud_download_outlined, size: 20),
+            const Icon(Icons.schedule, size: 20),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Web data refreshes every $webSnapshotRefreshMinutes minutes. '
-                'Install the Android APK for live scanning.',
+                'Site data auto-refreshes every $webSnapshotRefreshMinutes minutes '
+                '(GitHub Actions limit). Use Run data refresh to trigger an immediate update.',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
-            ),
-            TextButton(
-              onPressed: () {
-                launchUrl(
-                  Uri.base.resolve('output.apk'),
-                  mode: LaunchMode.externalApplication,
-                );
-              },
-              child: const Text('Get APK'),
             ),
           ],
         ),

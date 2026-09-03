@@ -8,6 +8,10 @@ const int webSnapshotRefreshMinutes = 5;
 const int maxEventsPerFetch = 100;
 const int maxEventPages = 20;
 
+const String githubRepo = 'DrOwlDev/app12_weather';
+const String refreshWorkflowUrl =
+    'https://github.com/$githubRepo/actions/workflows/refresh-web-data.yml';
+
 const String polymarketEventUrl = 'https://polymarket.com/event/';
 const String polymarketMarketUrl = 'https://polymarket.com/market/';
 

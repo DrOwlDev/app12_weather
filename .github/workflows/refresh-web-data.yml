@@ -2,7 +2,7 @@ name: Refresh Web Data
 
 on:
   schedule:
-    # GitHub Actions minimum interval is 5 minutes.
+    # GitHub Actions minimum scheduled interval is 5 minutes.
     - cron: '*/5 * * * *'
   workflow_dispatch:
 
@@ -29,7 +29,7 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Export web scan data
+      - name: Export closing bets data
         run: |
           sudo apt-get update
           sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev xvfb
@@ -42,10 +42,6 @@ jobs:
 
       - name: Copy web data into site
         run: mkdir -p build/web/data && cp web_data/*.json build/web/data/
-
-      - name: Preserve existing APK on site
-        run: curl -fL -o build/web/output.apk https://drowldev.github.io/app12_weather/output.apk
-        continue-on-error: true
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
