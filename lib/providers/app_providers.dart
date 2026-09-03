@@ -4,11 +4,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/constants.dart';
 import '../data/web_snapshot_loader.dart';
-import '../models/recommendation.dart';
+import '../models/closing_bet_row.dart';
 import '../models/weather_event.dart';
-import '../services/history_tracker.dart';
-import '../services/market_filters.dart';
-import '../services/scanner_service.dart';
+import '../services/closing_soon_scanner.dart';
 
 final sharedPreferencesProvider = FutureProvider<SharedPreferences>((ref) async {
   return SharedPreferences.getInstance();
@@ -21,50 +19,28 @@ final settingsProvider =
 
 class AppSettings {
   const AppSettings({
-    this.minEdge = defaultMinEdge,
+    this.closingWindowHours = defaultClosingWindowHours,
+    this.minPrice = defaultClosingBetMinPrice,
+    this.maxPrice = defaultClosingBetMaxPrice,
     this.refreshMinutes = defaultRefreshMinutes,
-    this.preferredCities = const [],
-    this.showYesterday = defaultShowYesterday,
-    this.showToday = defaultShowToday,
-    this.showTomorrow = defaultShowTomorrow,
-    this.hideLockedAt100 = defaultHideLockedAt100,
-    this.hideZeroPriceBuckets = defaultHideZeroPriceBuckets,
   });
 
-  final double minEdge;
+  final int closingWindowHours;
+  final double minPrice;
+  final double maxPrice;
   final int refreshMinutes;
-  final List<String> preferredCities;
-  final bool showYesterday;
-  final bool showToday;
-  final bool showTomorrow;
-  final bool hideLockedAt100;
-  final bool hideZeroPriceBuckets;
-
-  DateWindowFilter get dateFilter => DateWindowFilter(
-        showYesterday: showYesterday,
-        showToday: showToday,
-        showTomorrow: showTomorrow,
-      );
 
   AppSettings copyWith({
-    double? minEdge,
+    int? closingWindowHours,
+    double? minPrice,
+    double? maxPrice,
     int? refreshMinutes,
-    List<String>? preferredCities,
-    bool? showYesterday,
-    bool? showToday,
-    bool? showTomorrow,
-    bool? hideLockedAt100,
-    bool? hideZeroPriceBuckets,
   }) {
     return AppSettings(
-      minEdge: minEdge ?? this.minEdge,
+      closingWindowHours: closingWindowHours ?? this.closingWindowHours,
+      minPrice: minPrice ?? this.minPrice,
+      maxPrice: maxPrice ?? this.maxPrice,
       refreshMinutes: refreshMinutes ?? this.refreshMinutes,
-      preferredCities: preferredCities ?? this.preferredCities,
-      showYesterday: showYesterday ?? this.showYesterday,
-      showToday: showToday ?? this.showToday,
-      showTomorrow: showTomorrow ?? this.showTomorrow,
-      hideLockedAt100: hideLockedAt100 ?? this.hideLockedAt100,
-      hideZeroPriceBuckets: hideZeroPriceBuckets ?? this.hideZeroPriceBuckets,
     );
   }
 }
@@ -79,23 +55,36 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   Future<void> _load() async {
     final prefs = await ref.read(sharedPreferencesProvider.future);
     state = AppSettings(
-      minEdge: prefs.getDouble('min_edge') ?? defaultMinEdge,
+      closingWindowHours:
+          prefs.getInt('closing_window_hours') ?? defaultClosingWindowHours,
+      minPrice: prefs.getDouble('closing_min_price') ?? defaultClosingBetMinPrice,
+      maxPrice: prefs.getDouble('closing_max_price') ?? defaultClosingBetMaxPrice,
       refreshMinutes: prefs.getInt('refresh_minutes') ?? defaultRefreshMinutes,
-      preferredCities: prefs.getStringList('preferred_cities') ?? [],
-      showYesterday: prefs.getBool('show_yesterday') ?? defaultShowYesterday,
-      showToday: prefs.getBool('show_today') ?? defaultShowToday,
-      showTomorrow: prefs.getBool('show_tomorrow') ?? defaultShowTomorrow,
-      hideLockedAt100:
-          prefs.getBool('hide_locked_at_100') ?? defaultHideLockedAt100,
-      hideZeroPriceBuckets: prefs.getBool('hide_zero_price_buckets') ??
-          defaultHideZeroPriceBuckets,
     );
   }
 
-  Future<void> setMinEdge(double value) async {
-    state = state.copyWith(minEdge: value);
+  Future<void> setClosingWindowHours(int value) async {
+    state = state.copyWith(closingWindowHours: value);
     final prefs = await ref.read(sharedPreferencesProvider.future);
-    await prefs.setDouble('min_edge', value);
+    await prefs.setInt('closing_window_hours', value);
+  }
+
+  Future<void> setMinPrice(double value) async {
+    final newMin = value.clamp(0.50, 0.95);
+    final newMax = newMin > state.maxPrice ? newMin : state.maxPrice;
+    state = state.copyWith(minPrice: newMin, maxPrice: newMax);
+    final prefs = await ref.read(sharedPreferencesProvider.future);
+    await prefs.setDouble('closing_min_price', newMin);
+    await prefs.setDouble('closing_max_price', newMax);
+  }
+
+  Future<void> setMaxPrice(double value) async {
+    final newMax = value.clamp(0.85, 0.99);
+    final newMin = newMax < state.minPrice ? newMax : state.minPrice;
+    state = state.copyWith(minPrice: newMin, maxPrice: newMax);
+    final prefs = await ref.read(sharedPreferencesProvider.future);
+    await prefs.setDouble('closing_min_price', newMin);
+    await prefs.setDouble('closing_max_price', newMax);
   }
 
   Future<void> setRefreshMinutes(int value) async {
@@ -104,60 +93,20 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     await prefs.setInt('refresh_minutes', value);
   }
 
-  Future<void> setPreferredCities(List<String> cities) async {
-    state = state.copyWith(preferredCities: cities);
-    final prefs = await ref.read(sharedPreferencesProvider.future);
-    await prefs.setStringList('preferred_cities', cities);
-  }
-
-  Future<void> setShowYesterday(bool value) async {
-    state = state.copyWith(showYesterday: value);
-    final prefs = await ref.read(sharedPreferencesProvider.future);
-    await prefs.setBool('show_yesterday', value);
-  }
-
-  Future<void> setShowToday(bool value) async {
-    state = state.copyWith(showToday: value);
-    final prefs = await ref.read(sharedPreferencesProvider.future);
-    await prefs.setBool('show_today', value);
-  }
-
-  Future<void> setShowTomorrow(bool value) async {
-    state = state.copyWith(showTomorrow: value);
-    final prefs = await ref.read(sharedPreferencesProvider.future);
-    await prefs.setBool('show_tomorrow', value);
-  }
-
-  Future<void> setHideLockedAt100(bool value) async {
-    state = state.copyWith(hideLockedAt100: value);
-    final prefs = await ref.read(sharedPreferencesProvider.future);
-    await prefs.setBool('hide_locked_at_100', value);
-  }
-
-  Future<void> setHideZeroPriceBuckets(bool value) async {
-    state = state.copyWith(hideZeroPriceBuckets: value);
-    final prefs = await ref.read(sharedPreferencesProvider.future);
-    await prefs.setBool('hide_zero_price_buckets', value);
-  }
-
   Future<void> resetToDefaults() async {
     final prefs = await ref.read(sharedPreferencesProvider.future);
     state = const AppSettings();
-    await prefs.setDouble('min_edge', defaultMinEdge);
+    await prefs.setInt('closing_window_hours', defaultClosingWindowHours);
+    await prefs.setDouble('closing_min_price', defaultClosingBetMinPrice);
+    await prefs.setDouble('closing_max_price', defaultClosingBetMaxPrice);
     await prefs.setInt('refresh_minutes', defaultRefreshMinutes);
-    await prefs.setStringList('preferred_cities', []);
-    await prefs.setBool('show_yesterday', defaultShowYesterday);
-    await prefs.setBool('show_today', defaultShowToday);
-    await prefs.setBool('show_tomorrow', defaultShowTomorrow);
-    await prefs.setBool('hide_locked_at_100', defaultHideLockedAt100);
-    await prefs.setBool('hide_zero_price_buckets', defaultHideZeroPriceBuckets);
   }
 }
 
-final scannerServiceProvider = Provider<ScannerService>((ref) {
-  final service = ScannerService();
-  ref.onDispose(service.dispose);
-  return service;
+final closingSoonScannerProvider = Provider<ClosingSoonScanner>((ref) {
+  final scanner = ClosingSoonScanner();
+  ref.onDispose(scanner.dispose);
+  return scanner;
 });
 
 final webSnapshotLoaderProvider = Provider<WebSnapshotLoader>((ref) {
@@ -166,124 +115,73 @@ final webSnapshotLoaderProvider = Provider<WebSnapshotLoader>((ref) {
   return loader;
 });
 
-final scannerProvider =
-    AsyncNotifierProvider<ScannerNotifier, ScannerResult?>(ScannerNotifier.new);
+final closingSoonProvider =
+    AsyncNotifierProvider<ClosingSoonNotifier, ClosingSoonResult?>(
+  ClosingSoonNotifier.new,
+);
 
-class ScannerNotifier extends AsyncNotifier<ScannerResult?> {
+class ClosingSoonNotifier extends AsyncNotifier<ClosingSoonResult?> {
+  List<ClosingBetRow>? _cachedWebRows;
+  DateTime? _cachedWebGeneratedAt;
+  List<WeatherMarketEvent>? _cachedEvents;
+
   @override
-  Future<ScannerResult?> build() async {
+  Future<ClosingSoonResult?> build() async {
+    ref.listen<AppSettings>(settingsProvider, (previous, next) {
+      if (previous == null) return;
+      if (kIsWeb && _cachedWebRows != null) {
+        state = AsyncData(_filterWebRows(_cachedWebRows!, next));
+      } else if (!kIsWeb && _cachedEvents != null) {
+        state = AsyncData(_buildFromCachedEvents(next));
+      }
+    });
     return _scan();
   }
 
   Future<void> refresh() async {
+    _cachedWebRows = null;
+    _cachedEvents = null;
     state = const AsyncLoading();
     state = await AsyncValue.guard(_scan);
   }
 
-  Future<ScannerResult?> _scan() async {
+  Future<ClosingSoonResult?> _scan() async {
     final settings = ref.read(settingsProvider);
 
-    final ScannerResult result;
     if (kIsWeb) {
       final loader = ref.read(webSnapshotLoaderProvider);
-      final snapshot = await loader.loadScan();
-      result = snapshot.toScannerResult();
-    } else {
-      result = await ref.read(scannerServiceProvider).scan(
-            minEdge: settings.minEdge,
-            dateFilter: settings.dateFilter,
-            hideLockedAt100: settings.hideLockedAt100,
-            hideZeroPriceBuckets: settings.hideZeroPriceBuckets,
-          );
+      final snapshot = await loader.loadClosingBets();
+      _cachedWebRows = snapshot.rows;
+      _cachedWebGeneratedAt = snapshot.generatedAt;
+      return _filterWebRows(snapshot.rows, settings);
     }
 
-    return _applyClientFilters(result, settings);
+    final scanner = ref.read(closingSoonScannerProvider);
+    _cachedEvents = await scanner.fetchEvents();
+    return _buildFromCachedEvents(settings);
   }
 
-  ScannerResult _applyClientFilters(ScannerResult result, AppSettings settings) {
-    var events = result.events;
-    var recommendations = result.recommendations;
+  ClosingSoonResult _buildFromCachedEvents(AppSettings settings) {
+    final events = _cachedEvents ?? [];
+    final rows = buildClosingBetsFromEvents(
+      events,
+      closingWindowHours: settings.closingWindowHours,
+      minPrice: settings.minPrice,
+      maxPrice: settings.maxPrice,
+    );
+    return ClosingSoonResult(rows: rows, scannedAt: DateTime.now());
+  }
 
-    if (kIsWeb) {
-      events = applyMarketFilters(
-        events,
-        dateFilter: settings.dateFilter,
-        hideLockedAt100: settings.hideLockedAt100,
-        hideZeroPriceBuckets: settings.hideZeroPriceBuckets,
-      );
-      recommendations = recommendations
-          .where((r) => r.effectiveEdge >= settings.minEdge)
-          .where((r) => settings.dateFilter.matches(r.event.targetDate))
-          .where((r) {
-            if (settings.hideLockedAt100 && isLockedAt100(r.event)) {
-              return false;
-            }
-            return true;
-          })
-          .where((r) {
-            if (settings.hideZeroPriceBuckets &&
-                isZeroPriceBucket(r.targetBucket)) {
-              return false;
-            }
-            return true;
-          })
-          .toList();
-    }
-
-    if (settings.preferredCities.isEmpty) {
-      return ScannerResult(
-        recommendations: recommendations,
-        events: events,
-        scannedAt: result.scannedAt,
-      );
-    }
-
-    final preferred = settings.preferredCities.map((c) => c.toLowerCase()).toSet();
-    final filteredRecs = recommendations
-        .where((r) => preferred.any((p) => r.event.city.toLowerCase().contains(p)))
-        .toList();
-    final filteredEvents = events
-        .where((e) => preferred.any((p) => e.city.toLowerCase().contains(p)))
-        .toList();
-
-    return ScannerResult(
-      recommendations: filteredRecs,
-      events: filteredEvents,
-      scannedAt: result.scannedAt,
+  ClosingSoonResult _filterWebRows(List<ClosingBetRow> rows, AppSettings settings) {
+    final filtered = filterClosingBetRows(
+      rows,
+      closingWindowHours: settings.closingWindowHours,
+      minPrice: settings.minPrice,
+      maxPrice: settings.maxPrice,
+    );
+    return ClosingSoonResult(
+      rows: filtered,
+      scannedAt: _cachedWebGeneratedAt ?? DateTime.now(),
     );
   }
 }
-
-final cityStatsProvider =
-    AsyncNotifierProvider<CityStatsNotifier, List<CityStats>>(CityStatsNotifier.new);
-
-class CityStatsNotifier extends AsyncNotifier<List<CityStats>> {
-  @override
-  Future<List<CityStats>> build() async {
-    if (kIsWeb) {
-      final loader = ref.read(webSnapshotLoaderProvider);
-      final snapshot = await loader.loadStats();
-      return snapshot.stats;
-    }
-    final service = ref.read(scannerServiceProvider);
-    return service.fetchCityStats();
-  }
-
-  Future<void> refresh() async {
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
-      if (kIsWeb) {
-        final loader = ref.read(webSnapshotLoaderProvider);
-        final snapshot = await loader.loadStats();
-        return snapshot.stats;
-      }
-      final service = ref.read(scannerServiceProvider);
-      return service.fetchCityStats(refresh: true);
-    });
-  }
-}
-
-final selectedEventProvider = StateProvider<WeatherMarketEvent?>((ref) => null);
-
-final selectedRecommendationProvider =
-    StateProvider<BetRecommendation?>((ref) => null);

@@ -74,7 +74,21 @@ TemperatureBucket? parseBucketFromMarket({
     conditionId: market['conditionId']?.toString(),
     yesTokenId: tokenIds.isNotEmpty ? tokenIds[0].toString() : null,
     noTokenId: tokenIds.length > 1 ? tokenIds[1].toString() : null,
+    marketSlug: (market['slug'] as String?) ?? '',
+    endDate: _parseEndDate(market),
   );
+}
+
+DateTime? _parseEndDate(Map<String, dynamic> market) {
+  final iso = market['endDateIso'] as String?;
+  if (iso != null && iso.isNotEmpty) {
+    return DateTime.tryParse(iso);
+  }
+  final raw = market['endDate'] as String?;
+  if (raw != null && raw.isNotEmpty) {
+    return DateTime.tryParse(raw);
+  }
+  return null;
 }
 
 List<dynamic> _decodeJsonList(String raw) {

@@ -6,7 +6,6 @@ import '../config/constants.dart';
 import '../models/bucket.dart';
 import '../models/weather_event.dart';
 import '../services/bucket_parser.dart';
-import '../services/market_filters.dart';
 import 'stations.dart';
 
 class PolymarketClient {
@@ -25,10 +24,8 @@ class PolymarketClient {
     );
   }
 
-  /// Paginates active events and keeps those in the selected date window.
-  Future<List<WeatherMarketEvent>> fetchActiveTemperatureEventsInWindow(
-    DateWindowFilter filter,
-  ) async {
+  /// Paginates all active daily-temperature events (highest and lowest).
+  Future<List<WeatherMarketEvent>> fetchAllActiveTemperatureEvents() async {
     final bySlug = <String, WeatherMarketEvent>{};
     String? cursor;
 
@@ -40,33 +37,21 @@ class PolymarketClient {
       if (batch.isEmpty) break;
 
       for (final event in batch) {
-        if (filter.matches(event.targetDate)) {
-          bySlug[event.slug] = event;
-        }
+        bySlug[event.slug] = event;
       }
 
       if (batch.length < maxEventsPerFetch) break;
       cursor = batch.last.id;
     }
 
-    final results = bySlug.values.toList()
+    return bySlug.values.toList()
       ..sort((a, b) {
-        final dateCmp = a.targetDate.compareTo(b.targetDate);
-        if (dateCmp != 0) return dateCmp;
-        return b.volume24hr.compareTo(a.volume24hr);
+        final endA = a.endDate ?? a.targetDate;
+        final endB = b.endDate ?? b.targetDate;
+        final endCmp = endA.compareTo(endB);
+        if (endCmp != 0) return endCmp;
+        return a.city.compareTo(b.city);
       });
-    return results;
-  }
-
-  Future<List<WeatherMarketEvent>> fetchClosedTemperatureEvents({
-    int limit = 100,
-    String? afterCursor,
-  }) async {
-    return _fetchEvents(
-      closed: true,
-      limit: limit,
-      afterCursor: afterCursor,
-    );
   }
 
   Future<List<WeatherMarketEvent>> _fetchEvents({
@@ -77,8 +62,8 @@ class PolymarketClient {
     final params = <String, String>{
       'closed': closed.toString(),
       'tag_slug': 'daily-temperature',
-      'order': closed ? 'endDate' : 'volume24hr',
-      'ascending': 'false',
+      'order': closed ? 'endDate' : 'endDate',
+      'ascending': closed ? 'false' : 'true',
       'limit': limit.toString(),
     };
     if (afterCursor != null) {
@@ -102,12 +87,16 @@ class PolymarketClient {
 
   WeatherMarketEvent? _parseEvent(Map<String, dynamic> raw) {
     final title = (raw['title'] as String?) ?? '';
-    if (!title.toLowerCase().contains('temperature')) return null;
-    if (!title.toLowerCase().contains('highest')) return null;
+    final lower = title.toLowerCase();
+    if (!lower.contains('temperature')) return null;
+    if (!lower.contains('highest') && !lower.contains('lowest')) return null;
 
     final city = extractCityFromTitle(title);
     final targetDate = extractDateFromTitle(title) ?? DateTime.now();
+    final metric = extractMetricFromTitle(title);
     final station = lookupStation(city);
+
+    final eventEndDate = _parseEndDate(raw);
 
     final markets = raw['markets'] as List<dynamic>? ?? [];
     final buckets = <TemperatureBucket>[];
@@ -145,8 +134,22 @@ class PolymarketClient {
       latitude: lat,
       longitude: lon,
       volume24hr: volume,
-      isSameDay: isToday(targetDate),
+      endDate: eventEndDate,
+      metric: metric,
+      isSameDay: dateOnly(targetDate) == dateOnly(DateTime.now()),
     );
+  }
+
+  DateTime? _parseEndDate(Map<String, dynamic> raw) {
+    final iso = raw['endDateIso'] as String?;
+    if (iso != null && iso.isNotEmpty) {
+      return DateTime.tryParse(iso);
+    }
+    final end = raw['endDate'] as String?;
+    if (end != null && end.isNotEmpty) {
+      return DateTime.tryParse(end);
+    }
+    return null;
   }
 
   double _sumVolume(List<dynamic> markets) {

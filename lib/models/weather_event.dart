@@ -1,4 +1,6 @@
+import '../config/constants.dart';
 import 'bucket.dart';
+import 'closing_bet_row.dart';
 
 class WeatherMarketEvent {
   const WeatherMarketEvent({
@@ -13,6 +15,8 @@ class WeatherMarketEvent {
     required this.latitude,
     required this.longitude,
     this.volume24hr = 0,
+    this.endDate,
+    this.metric = TemperatureMetric.highest,
     this.ensembleSpread,
     this.metRunningMax,
     this.isSameDay = false,
@@ -29,18 +33,13 @@ class WeatherMarketEvent {
   final double latitude;
   final double longitude;
   final double volume24hr;
+  final DateTime? endDate;
+  final TemperatureMetric metric;
   final double? ensembleSpread;
   final double? metRunningMax;
   final bool isSameDay;
 
-  String get polymarketUrl => 'https://polymarket.com/event/$slug';
-
-  TemperatureBucket? get favoriteBucket {
-    if (buckets.isEmpty) return null;
-    return buckets.reduce(
-      (a, b) => a.modelProbability >= b.modelProbability ? a : b,
-    );
-  }
+  String get polymarketUrl => '$polymarketEventUrl$slug';
 
   WeatherMarketEvent copyWith({
     List<TemperatureBucket>? buckets,
@@ -50,6 +49,8 @@ class WeatherMarketEvent {
     String? icaoCode,
     double? latitude,
     double? longitude,
+    DateTime? endDate,
+    TemperatureMetric? metric,
   }) {
     return WeatherMarketEvent(
       id: id,
@@ -63,6 +64,8 @@ class WeatherMarketEvent {
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       volume24hr: volume24hr,
+      endDate: endDate ?? this.endDate,
+      metric: metric ?? this.metric,
       ensembleSpread: ensembleSpread ?? this.ensembleSpread,
       metRunningMax: metRunningMax ?? this.metRunningMax,
       isSameDay: isSameDay ?? this.isSameDay,

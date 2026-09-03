@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'ui/dashboard_screen.dart';
 import 'ui/settings_screen.dart';
-import 'ui/stats_screen.dart';
 
 class WeatherScannerApp extends ConsumerWidget {
   const WeatherScannerApp({super.key});
@@ -11,7 +10,7 @@ class WeatherScannerApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp(
-      title: 'Polymarket Weather Scanner',
+      title: 'Polymarket Closing Weather Bets',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
@@ -55,7 +54,6 @@ class _MainShellState extends ConsumerState<MainShell> {
         index: _index,
         children: const [
           DashboardScreen(),
-          StatsScreen(),
           SettingsScreen(),
         ],
       ),
@@ -64,14 +62,9 @@ class _MainShellState extends ConsumerState<MainShell> {
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.radar_outlined),
-            selectedIcon: Icon(Icons.radar),
+            icon: Icon(Icons.table_chart_outlined),
+            selectedIcon: Icon(Icons.table_chart),
             label: 'Scanner',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.analytics_outlined),
-            selectedIcon: Icon(Icons.analytics),
-            label: 'Stats',
           ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),

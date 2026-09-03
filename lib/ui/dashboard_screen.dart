@@ -5,26 +5,24 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../config/constants.dart';
-import '../models/recommendation.dart';
+import '../models/closing_bet_row.dart';
 import '../providers/app_providers.dart';
-import '../services/market_filters.dart';
-import 'market_detail_screen.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final scanAsync = ref.watch(scannerProvider);
+    final scanAsync = ref.watch(closingSoonProvider);
     final settings = ref.watch(settingsProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Weather Bet Scanner'),
+        title: const Text('Closing Weather Bets'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => ref.read(scannerProvider.notifier).refresh(),
+            onPressed: () => ref.read(closingSoonProvider.notifier).refresh(),
             tooltip: 'Refresh',
           ),
         ],
@@ -36,7 +34,7 @@ class DashboardScreen extends ConsumerWidget {
             children: [
               CircularProgressIndicator(),
               SizedBox(height: 16),
-              Text('Scanning Polymarket weather markets…'),
+              Text('Scanning Polymarket temperature markets…'),
             ],
           ),
         ),
@@ -46,12 +44,14 @@ class DashboardScreen extends ConsumerWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.cloud_off, size: 48, color: Theme.of(context).colorScheme.error),
+                Icon(Icons.cloud_off,
+                    size: 48, color: Theme.of(context).colorScheme.error),
                 const SizedBox(height: 16),
                 Text('Scan failed: $err', textAlign: TextAlign.center),
                 const SizedBox(height: 16),
                 FilledButton(
-                  onPressed: () => ref.read(scannerProvider.notifier).refresh(),
+                  onPressed: () =>
+                      ref.read(closingSoonProvider.notifier).refresh(),
                   child: const Text('Retry'),
                 ),
               ],
@@ -64,65 +64,24 @@ class DashboardScreen extends ConsumerWidget {
           }
 
           return RefreshIndicator(
-            onRefresh: () => ref.read(scannerProvider.notifier).refresh(),
+            onRefresh: () => ref.read(closingSoonProvider.notifier).refresh(),
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
                 if (kIsWeb) const _WebDataBanner(),
                 if (kIsWeb) const SizedBox(height: 12),
-                _DisclaimerBanner(),
-                const SizedBox(height: 12),
-                const _DashboardFilterBar(),
+                _FilterSliders(settings: settings),
                 const SizedBox(height: 12),
                 _ScanSummary(
-                  count: result.recommendations.length,
-                  minEdge: settings.minEdge,
+                  count: result.rows.length,
                   scannedAt: result.scannedAt,
                   settings: settings,
                 ),
                 const SizedBox(height: 16),
-                if (result.recommendations.isEmpty)
+                if (result.rows.isEmpty)
                   const _EmptyState()
                 else
-                  ...result.recommendations.map(
-                    (rec) => _RecommendationCard(
-                      recommendation: rec,
-                      onTap: () {
-                        ref.read(selectedEventProvider.notifier).state = rec.event;
-                        ref.read(selectedRecommendationProvider.notifier).state = rec;
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => MarketDetailScreen(
-                              event: rec.event,
-                              highlight: rec,
-                            ),
-                          ),
-                        );
-                      },
-                      onOpenPolymarket: () => _openUrl(rec.event.polymarketUrl),
-                    ),
-                  ),
-                const SizedBox(height: 24),
-                Text(
-                  'All active markets (${result.events.length})',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 8),
-                ...result.events.take(20).map(
-                  (event) => ListTile(
-                    title: Text(event.city),
-                    subtitle: Text(_formatEventDate(event.targetDate)),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () {
-                      ref.read(selectedEventProvider.notifier).state = event;
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => MarketDetailScreen(event: event),
-                        ),
-                      );
-                    },
-                  ),
-                ),
+                  _ClosingBetsTable(rows: result.rows),
               ],
             ),
           );
@@ -130,19 +89,6 @@ class DashboardScreen extends ConsumerWidget {
       ),
     );
   }
-
-  Future<void> _openUrl(String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
-  }
-}
-
-String _formatEventDate(DateTime date) {
-  final label = dateLabel(date);
-  final formatted = DateFormat.yMMMd().format(date);
-  return label.isEmpty ? formatted : '$formatted ($label)';
 }
 
 class _WebDataBanner extends StatelessWidget {
@@ -151,7 +97,10 @@ class _WebDataBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.35),
+      color: Theme.of(context)
+          .colorScheme
+          .primaryContainer
+          .withValues(alpha: 0.35),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Row(
@@ -181,39 +130,14 @@ class _WebDataBanner extends StatelessWidget {
   }
 }
 
-class _DisclaimerBanner extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.3),
-      child: const Padding(
-        padding: EdgeInsets.all(12),
-        child: Row(
-          children: [
-            Icon(Icons.warning_amber_rounded, size: 20),
-            SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'Scanner only — not financial advice. Edge estimates are model-based, not guaranteed.',
-                style: TextStyle(fontSize: 12),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+class _FilterSliders extends ConsumerWidget {
+  const _FilterSliders({required this.settings});
 
-class _DashboardFilterBar extends ConsumerWidget {
-  const _DashboardFilterBar();
+  final AppSettings settings;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final settings = ref.watch(settingsProvider);
     final theme = Theme.of(context);
-
-    void refreshScan() => ref.read(scannerProvider.notifier).refresh();
 
     return Card(
       child: Padding(
@@ -223,70 +147,48 @@ class _DashboardFilterBar extends ConsumerWidget {
           children: [
             Text('Filters', style: theme.textTheme.titleSmall),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 4,
-              runSpacing: 0,
-              children: [
-                FilterChip(
-                  label: const Text('Yesterday'),
-                  selected: settings.showYesterday,
-                  onSelected: (value) async {
-                    await ref
-                        .read(settingsProvider.notifier)
-                        .setShowYesterday(value);
-                    refreshScan();
-                  },
-                ),
-                FilterChip(
-                  label: const Text('Today'),
-                  selected: settings.showToday,
-                  onSelected: (value) async {
-                    await ref.read(settingsProvider.notifier).setShowToday(value);
-                    refreshScan();
-                  },
-                ),
-                FilterChip(
-                  label: const Text('Tomorrow'),
-                  selected: settings.showTomorrow,
-                  onSelected: (value) async {
-                    await ref
-                        .read(settingsProvider.notifier)
-                        .setShowTomorrow(value);
-                    refreshScan();
-                  },
-                ),
-              ],
+            Text(
+              'Closing within ${settings.closingWindowHours} hours',
+              style: theme.textTheme.bodySmall,
             ),
-            CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              dense: true,
-              title: const Text('Hide locked markets'),
-              subtitle: const Text(
-                'Exclude markets where one outcome is ~100% and nothing else trades',
-              ),
-              value: settings.hideLockedAt100,
-              onChanged: (value) async {
-                if (value == null) return;
+            Slider(
+              value: settings.closingWindowHours.toDouble(),
+              min: 1,
+              max: 48,
+              divisions: 47,
+              label: '${settings.closingWindowHours}h',
+              onChanged: (v) async {
                 await ref
                     .read(settingsProvider.notifier)
-                    .setHideLockedAt100(value);
-                refreshScan();
+                    .setClosingWindowHours(v.round());
               },
             ),
-            CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              dense: true,
-              title: const Text('Hide 0 YES / 0 NO buckets'),
-              subtitle: const Text(
-                'Exclude temperature buckets with no tradeable YES or NO price',
-              ),
-              value: settings.hideZeroPriceBuckets,
-              onChanged: (value) async {
-                if (value == null) return;
-                await ref
-                    .read(settingsProvider.notifier)
-                    .setHideZeroPriceBuckets(value);
-                refreshScan();
+            Text(
+              'Min share price ${(settings.minPrice * 100).toStringAsFixed(0)}¢',
+              style: theme.textTheme.bodySmall,
+            ),
+            Slider(
+              value: settings.minPrice,
+              min: 0.50,
+              max: 0.95,
+              divisions: 45,
+              label: '${(settings.minPrice * 100).toStringAsFixed(0)}¢',
+              onChanged: (v) async {
+                await ref.read(settingsProvider.notifier).setMinPrice(v);
+              },
+            ),
+            Text(
+              'Max share price ${(settings.maxPrice * 100).toStringAsFixed(0)}¢',
+              style: theme.textTheme.bodySmall,
+            ),
+            Slider(
+              value: settings.maxPrice,
+              min: 0.85,
+              max: 0.99,
+              divisions: 14,
+              label: '${(settings.maxPrice * 100).toStringAsFixed(0)}¢',
+              onChanged: (v) async {
+                await ref.read(settingsProvider.notifier).setMaxPrice(v);
               },
             ),
           ],
@@ -299,50 +201,30 @@ class _DashboardFilterBar extends ConsumerWidget {
 class _ScanSummary extends StatelessWidget {
   const _ScanSummary({
     required this.count,
-    required this.minEdge,
     required this.scannedAt,
     required this.settings,
   });
 
   final int count;
-  final double minEdge;
   final DateTime scannedAt;
   final AppSettings settings;
 
   @override
   Widget build(BuildContext context) {
-    final filters = <String>[
-      ...settings.dateFilter.activeLabels(),
-      if (settings.hideLockedAt100) 'unlocked only',
-      if (settings.hideZeroPriceBuckets) 'no zero-price buckets',
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                settings.dateFilter.hasAnySelected
-                    ? '$count opportunities with ≥${(minEdge * 100).toStringAsFixed(0)}% edge'
-                    : 'Select at least one day to scan',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ),
-            Text(
-              DateFormat.Hm().format(scannedAt),
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
-        if (filters.isNotEmpty)
-          Text(
-            'Showing: ${filters.join(', ')}',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.outline,
-                ),
+        Expanded(
+          child: Text(
+            '$count bets closing ≤${settings.closingWindowHours}h '
+            'at ${(settings.minPrice * 100).toStringAsFixed(0)}–'
+            '${(settings.maxPrice * 100).toStringAsFixed(0)}¢',
+            style: Theme.of(context).textTheme.titleMedium,
           ),
+        ),
+        Text(
+          DateFormat.Hm().format(scannedAt),
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
       ],
     );
   }
@@ -358,18 +240,19 @@ class _EmptyState extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            Icon(Icons.search_off, size: 48, color: Theme.of(context).colorScheme.outline),
+            Icon(Icons.search_off,
+                size: 48,
+                color: Theme.of(context).colorScheme.outline),
             const SizedBox(height: 12),
             Text(
-              'No bets meet the minimum edge threshold right now.',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyLarge,
+              'No matching bets right now',
+              style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
             Text(
-              'Try lowering the threshold in Settings or check back after the next forecast update.',
-              textAlign: TextAlign.center,
+              'Try widening the closing window or price range.',
               style: Theme.of(context).textTheme.bodySmall,
+              textAlign: TextAlign.center,
             ),
           ],
         ),
@@ -378,167 +261,73 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-class _RecommendationCard extends StatelessWidget {
-  const _RecommendationCard({
-    required this.recommendation,
-    required this.onTap,
-    required this.onOpenPolymarket,
-  });
+class _ClosingBetsTable extends StatelessWidget {
+  const _ClosingBetsTable({required this.rows});
 
-  final BetRecommendation recommendation;
-  final VoidCallback onTap;
-  final VoidCallback onOpenPolymarket;
+  final List<ClosingBetRow> rows;
 
   @override
   Widget build(BuildContext context) {
-    final rec = recommendation;
-    final event = rec.event;
     final theme = Theme.of(context);
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      event.city,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+      clipBehavior: Clip.antiAlias,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: DataTable(
+          headingRowColor: WidgetStatePropertyAll(
+            theme.colorScheme.surfaceContainerHighest,
+          ),
+          columns: const [
+            DataColumn(label: Text('City')),
+            DataColumn(label: Text('High / Low')),
+            DataColumn(label: Text('Temperature')),
+            DataColumn(label: Text('Side')),
+            DataColumn(label: Text('Price')),
+            DataColumn(label: Text('Closes')),
+            DataColumn(label: Text('')),
+          ],
+          rows: rows.map((row) {
+            final priceLabel =
+                '${(row.sharePrice * 100).toStringAsFixed(1)}¢';
+            final closesLabel = DateFormat.Hm().format(row.endDate.toLocal());
+
+            return DataRow(
+              cells: [
+                DataCell(Text(row.city)),
+                DataCell(Text(row.metric.label)),
+                DataCell(Text(row.bucketLabel)),
+                DataCell(
+                  Text(
+                    row.side.label,
+                    style: TextStyle(
+                      color: row.side == BetSide.yes
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.tertiary,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  _StabilityBadge(score: rec.cityStabilityScore),
-                ],
-              ),
-              Text(
-                _formatEventDate(event.targetDate),
-                style: theme.textTheme.bodySmall,
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(
-                  rec.strategyLabel,
-                  style: theme.textTheme.labelLarge,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  _MetricChip(
-                    label: 'Model',
-                    value: '${(rec.modelProbability * 100).toStringAsFixed(1)}%',
-                  ),
-                  const SizedBox(width: 8),
-                  _MetricChip(
-                    label: 'Edge',
-                    value: '${(rec.effectiveEdge * 100).toStringAsFixed(1)}%',
-                    highlight: true,
-                  ),
-                  const SizedBox(width: 8),
-                  _MetricChip(
-                    label: 'Return',
-                    value: '${(rec.returnOnCost * 100).toStringAsFixed(1)}%',
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                rec.confidenceNote,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.outline,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  TextButton(
-                    onPressed: onTap,
-                    child: const Text('Details'),
-                  ),
-                  const Spacer(),
+                DataCell(Text(priceLabel)),
+                DataCell(Text(closesLabel)),
+                DataCell(
                   FilledButton.tonal(
-                    onPressed: onOpenPolymarket,
-                    child: const Text('Open Polymarket'),
+                    onPressed: () => _openUrl(row.polymarketUrl),
+                    child: const Text('Open'),
                   ),
-                ],
-              ),
-            ],
-          ),
+                ),
+              ],
+            );
+          }).toList(),
         ),
       ),
     );
   }
-}
 
-class _StabilityBadge extends StatelessWidget {
-  const _StabilityBadge({required this.score});
-
-  final double score;
-
-  @override
-  Widget build(BuildContext context) {
-    final pct = (score * 100).round();
-    Color color;
-    if (score >= 0.85) {
-      color = Colors.green;
-    } else if (score >= 0.7) {
-      color = Colors.orange;
-    } else {
-      color = Colors.red;
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        border: Border.all(color: color),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Text(
-        'Stability $pct%',
-        style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600),
-      ),
-    );
-  }
-}
-
-class _MetricChip extends StatelessWidget {
-  const _MetricChip({
-    required this.label,
-    required this.value,
-    this.highlight = false,
-  });
-
-  final String label;
-  final String value;
-  final bool highlight;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: Theme.of(context).textTheme.labelSmall),
-        Text(
-          value,
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                fontWeight: highlight ? FontWeight.bold : FontWeight.w500,
-                color: highlight ? Theme.of(context).colorScheme.primary : null,
-              ),
-        ),
-      ],
-    );
   }
 }

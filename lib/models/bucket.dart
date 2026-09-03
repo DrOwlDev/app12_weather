@@ -18,6 +18,8 @@ class TemperatureBucket {
     this.yesTokenId,
     this.noTokenId,
     this.modelProbability = 0,
+    this.marketSlug = '',
+    this.endDate,
   });
 
   final String id;
@@ -36,6 +38,8 @@ class TemperatureBucket {
   final String? yesTokenId;
   final String? noTokenId;
   final double modelProbability;
+  final String marketSlug;
+  final DateTime? endDate;
 
   double get effectiveYesAsk => yesAsk ?? yesPrice;
   double get effectiveNoAsk => noAsk ?? noPrice;
@@ -56,7 +60,11 @@ class TemperatureBucket {
     return false;
   }
 
-  TemperatureBucket copyWith({double? modelProbability}) {
+  TemperatureBucket copyWith({
+    double? modelProbability,
+    String? marketSlug,
+    DateTime? endDate,
+  }) {
     return TemperatureBucket(
       id: id,
       label: label,
@@ -74,6 +82,8 @@ class TemperatureBucket {
       yesTokenId: yesTokenId,
       noTokenId: noTokenId,
       modelProbability: modelProbability ?? this.modelProbability,
+      marketSlug: marketSlug ?? this.marketSlug,
+      endDate: endDate ?? this.endDate,
     );
   }
 }
