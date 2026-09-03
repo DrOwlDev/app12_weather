@@ -28,7 +28,7 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Export web scan data
+      - name: Export closing bets data
         run: |
           sudo apt-get update
           sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev xvfb
@@ -41,15 +41,6 @@ jobs:
 
       - name: Copy web data into site
         run: mkdir -p build/web/data && cp web_data/*.json build/web/data/
-
-      - name: Accept Android licenses
-        run: yes | flutter doctor --android-licenses
-
-      - name: Build APK
-        run: flutter build apk --release
-
-      - name: Copy APK to web output
-        run: cp build/app/outputs/flutter-apk/app-release.apk build/web/output.apk
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

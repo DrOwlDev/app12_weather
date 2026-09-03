@@ -1,3 +1,5 @@
+import '../models/closing_bet_row.dart';
+
 class StationInfo {
   const StationInfo({
     required this.cityKey,
@@ -200,6 +202,13 @@ String extractCityFromTitle(String title) {
     return match.group(1)!.trim();
   }
   return title;
+}
+
+TemperatureMetric extractMetricFromTitle(String title) {
+  if (title.toLowerCase().contains('lowest')) {
+    return TemperatureMetric.lowest;
+  }
+  return TemperatureMetric.highest;
 }
 
 DateTime? extractDateFromTitle(String title) {

@@ -2,40 +2,33 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-import '../models/web_snapshot.dart';
+import '../models/closing_bets_snapshot.dart';
 
 class WebSnapshotLoader {
   WebSnapshotLoader({http.Client? client}) : _client = client ?? http.Client();
 
   final http.Client _client;
 
-  static const scanPath = 'data/scan.json';
-  static const statsPath = 'data/stats.json';
+  static const closingBetsPath = 'data/closing_bets.json';
 
-  Future<WebScanSnapshot> loadScan() async {
-    final uri = Uri.base.resolve(scanPath);
+  Future<ClosingBetsSnapshot> loadClosingBets({bool bustCache = false}) async {
+    var uri = Uri.base.resolve(closingBetsPath);
+    if (bustCache) {
+      uri = uri.replace(
+        queryParameters: {
+          't': DateTime.now().millisecondsSinceEpoch.toString(),
+        },
+      );
+    }
     final response = await _client.get(uri, headers: _headers);
     if (response.statusCode != 200) {
       throw Exception(
-        'Failed to load web scan data (${response.statusCode}) from $uri',
+        'Failed to load closing bets data (${response.statusCode}) from $uri',
       );
     }
 
     final json = jsonDecode(response.body) as Map<String, dynamic>;
-    return WebScanSnapshot.fromJson(json);
-  }
-
-  Future<WebStatsSnapshot> loadStats() async {
-    final uri = Uri.base.resolve(statsPath);
-    final response = await _client.get(uri, headers: _headers);
-    if (response.statusCode != 200) {
-      throw Exception(
-        'Failed to load web stats data (${response.statusCode}) from $uri',
-      );
-    }
-
-    final json = jsonDecode(response.body) as Map<String, dynamic>;
-    return WebStatsSnapshot.fromJson(json);
+    return ClosingBetsSnapshot.fromJson(json);
   }
 
   void dispose() {
